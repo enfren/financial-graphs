@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head><title>Compounding Interest — Daily</title></head>
+<body style="margin:0;background:#0a0a0a;display:grid;place-items:center;height:100vh">
+<canvas id="c" width="700" height="480"></canvas>
+<script>
+const c = document.getElementById('c'), ctx = c.getContext('2d');
+
+// --- Config ---
+const deposit = 100;
+const APY = 0.035;              // 3.5% Annual Percentage Yield
+const year = 2028;              // Leap year! Feb has 29 days
+const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// --- Real daily compounding ---
+// APY = (1 + r/365)^365 - 1  →  r = 365 * ((1+APY)^(1/365) - 1)
+const APR = 365 * (Math.pow(1 + APY, 1/365) - 1);
+const dailyRate = APR / 365;
+
+// Iterate day-by-day through the real calendar
+let date = new Date(year, 0, 1); // Jan 1, 2028
+let balance = deposit;
+const points = [];
+
+// Record balance on the 1st of each month
+if (date.getDate() === 1) points.push({ label: 'Jan', balance, days: 0 });
+
+while (date.getFullYear() === year) {
+  balance *= (1 + dailyRate); // compound daily
+  date.setDate(date.getDate() + 1); // Date handles month/year rollover + leap years
+
+  if (date.getDate() === 1 && date.getMonth() < 12) {
+    const elapsed = Math.round((date - new Date(year, 0, 1)) / 86400000);
+    points.push({ label: months[date.getMonth()], balance, days: elapsed });
+  }
+}
+
+// --- Layout ---
+const pad = { top: 55, right: 40, bottom: 65, left: 75 };
+const w = c.width - pad.left - pad.right;
+const h = c.height - pad.top - pad.bottom;
+
+const minVal = Math.floor(Math.min(...points.map(p => p.balance)) - 1);
+const maxVal = Math.ceil(Math.max(...points.map(p => p.balance)) + 1);
+
+function xPos(i) { return pad.left + (i / (points.length - 1)) * w; }
+function yPos(v) { return pad.top + h - ((v - minVal) / (maxVal - minVal)) * h; }
+
+// --- Animation ---
+let frame = 0;
+const framesPerPoint = 25;
+
+function draw() {
+  ctx.clearRect(0, 0, c.width, c.height);
+
+  // Grid
+  ctx.strokeStyle = '#1a1a2e';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    const y = pad.top + (i / 5) * h;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + w, y); ctx.stroke();
+  }
+
+  // Y-axis labels
+  ctx.fillStyle = '#666';
+  ctx.font = '11px monospace';
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 5; i++) {
+    const val = maxVal - (i / 5) * (maxVal - minVal);
+    ctx.fillText('$' + val.toFixed(0), pad.left - 8, pad.top + (i / 5) * h + 4);
+  }
+
+  // X-axis labels + day count
+  ctx.textAlign = 'center';
+  points.forEach((p, i) => {
+    ctx.fillStyle = '#888';
+    ctx.fillText(p.label, xPos(i), pad.top + h + 18);
+    ctx.fillStyle = '#444';
+    ctx.font = '9px monospace';
+    ctx.fillText('d' + p.days, xPos(i), pad.top + h + 32);
+    ctx.font = '11px monospace';
+  });
+
+  // Title
+  ctx.fillStyle = '#fff';
+  ctx.font = '14px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText(`$100 @ 3.5% APY — daily compounding — ${year} (leap)`, pad.left, 22);
+
+  // Visible points so far
+  const visible = Math.min(points.length, Math.floor(frame / framesPerPoint) + 1);
+
+  // Line with glow
+  if (visible > 1) {
+    ctx.beginPath();
+    ctx.moveTo(xPos(0), yPos(points[0].balance));
+    for (let i = 1; i < visible; i++) {
+      ctx.lineTo(xPos(i), yPos(points[i].balance));
+    }
+    ctx.strokeStyle = '#00e5ff';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = '#00e5ff';
+    ctx.shadowBlur = 10;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  // Points + labels
+  for (let i = 0; i < visible; i++) {
+    const x = xPos(i), y = yPos(points[i].balance);
+
+    ctx.fillStyle = '#00e5ff';
+    ctx.shadowColor = '#00e5ff';
+    ctx.shadowBlur = 6;
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = '#aaa';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('$' + points[i].balance.toFixed(2), x, y - 14);
+  }
+
+  // Running balance (top-right)
+  if (visible > 0) {
+    ctx.fillStyle = '#0f0';
+    ctx.font = 'bold 16px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText('$' + points[visible - 1].balance.toFixed(4), c.width - pad.right, 22);
+  }
+
+  // APR note (bottom)
+  ctx.fillStyle = '#555';
+  ctx.font = '10px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText(`APR = ${(APR * 100).toFixed(4)}%  |  daily rate = ${(dailyRate * 100).toFixed(6)}%`, pad.left, c.height - 10);
+
+  frame++;
+  if (frame < points.length * framesPerPoint + 30) {
+    requestAnimationFrame(draw);
+  }
+}
+draw();
+</script>
+</body>
+</html>   
